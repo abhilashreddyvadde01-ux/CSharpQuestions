@@ -1,0 +1,103 @@
+using System.Globalization;
+
+var customers = new List<Customer>
+{
+    new(1, "Asha", "Hyderabad"),
+    new(2, "Ravi", "Bengaluru"),
+    new(3, "Meena", "Chennai"),
+    new(4, "Karthik", "Hyderabad"),
+    new(5, "Divya", "Pune"),
+    new(6, "Imran", "Mumbai"),
+};
+
+var orders = new List<Order>
+{
+    new(101, 1, new DateTime(2026, 1, 12), 250.00m),
+    new(102, 2, new DateTime(2026, 1, 25), 780.50m),
+    new(103, 1, new DateTime(2026, 2, 3), 1200.00m),
+    new(104, 3, new DateTime(2026, 2, 14), 90.00m),
+    new(105, 4, new DateTime(2026, 2, 28), 560.00m),
+    new(106, 2, new DateTime(2026, 3, 5), 430.75m),
+    new(107, 1, new DateTime(2026, 3, 18), 640.00m),
+    new(108, 3, new DateTime(2026, 3, 22), 1500.00m),
+    new(109, 4, new DateTime(2026, 3, 30), 310.25m),
+    new(110, 2, new DateTime(2026, 3, 30), 95.00m),
+};
+
+Console.WriteLine("1. Total per customer");
+var totalPerCustomer = orders
+    .GroupBy(o => o.CustomerId)
+    .Select(g => new { Id = g.Key, Total = g.Sum(o => o.Amount) })
+    .OrderByDescending(x => x.Total);
+
+foreach (var item in totalPerCustomer)
+    Console.WriteLine($"Customer {item.Id}: {item.Total:N2}");
+
+decimal minAmount = 500m;
+Console.WriteLine($"\n2. Orders above {minAmount}");
+var bigOrders = orders.Where(o => o.Amount > minAmount);
+
+foreach (var o in bigOrders)
+    Console.WriteLine($"Order {o.Id} (customer {o.CustomerId}): {o.Amount:N2}");
+
+Console.WriteLine("\n3. Orders by month");
+var monthly = orders
+    .GroupBy(o => new { o.Date.Year, o.Date.Month })
+    .OrderBy(g => g.Key.Year)
+    .ThenBy(g => g.Key.Month)
+    .Select(g => new
+    {
+        Month = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy", CultureInfo.InvariantCulture),
+        Count = g.Count(),
+        Revenue = g.Sum(o => o.Amount)
+    });
+
+foreach (var m in monthly)
+    Console.WriteLine($"{m.Month}: {m.Count} orders, revenue {m.Revenue:N2}");
+
+Console.WriteLine("\n4. Top 3 customers by revenue");
+var topThree = orders
+    .GroupBy(o => o.CustomerId)
+    .Select(g => new { Id = g.Key, Revenue = g.Sum(o => o.Amount) })
+    .Join(customers, x => x.Id, c => c.Id, (x, c) => new { c.Name, x.Revenue })
+    .OrderByDescending(x => x.Revenue)
+    .Take(3);
+
+foreach (var t in topThree)
+    Console.WriteLine($"{t.Name}: {t.Revenue:N2}");
+
+Console.WriteLine("\n5. Customers joined with orders");
+var customerOrders = from o in orders
+                     join c in customers on o.CustomerId equals c.Id
+                     select new { o.Id, c.Name, c.City, o.Date, o.Amount };
+
+foreach (var co in customerOrders)
+    Console.WriteLine($"Order {co.Id}: {co.Name} ({co.City}) on {co.Date:yyyy-MM-dd}, {co.Amount:N2}");
+
+Console.WriteLine("\n6. Average order value");
+Console.WriteLine($"Overall: {orders.Average(o => o.Amount):N2}");
+
+var avgPerCustomer = orders
+    .GroupBy(o => o.CustomerId)
+    .Join(customers, g => g.Key, c => c.Id, (g, c) => new { c.Name, Avg = g.Average(o => o.Amount) });
+
+foreach (var a in avgPerCustomer)
+    Console.WriteLine($"  {a.Name}: {a.Avg:N2}");
+
+Console.WriteLine("\n7. Customers with no orders");
+var noOrders = customers.Where(c => !orders.Any(o => o.CustomerId == c.Id));
+
+foreach (var c in noOrders)
+    Console.WriteLine($"{c.Name} ({c.City})");
+
+Console.WriteLine("\n8. Sorted by name, then amount (high to low)");
+var sorted = orders
+    .Join(customers, o => o.CustomerId, c => c.Id, (o, c) => new { c.Name, o.Id, o.Amount })
+    .OrderBy(x => x.Name)
+    .ThenByDescending(x => x.Amount);
+
+foreach (var s in sorted)
+    Console.WriteLine($"{s.Name,-8} order {s.Id}: {s.Amount:N2}");
+
+record Customer(int Id, string Name, string City);
+record Order(int Id, int CustomerId, DateTime Date, decimal Amount);
